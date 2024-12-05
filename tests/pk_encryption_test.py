@@ -1,5 +1,6 @@
 import importlib
 import pytest
+import olm
 
 from vodozemac import Curve25519SecretKey, Curve25519PublicKey, PkEncryption, PkDecryption, PkDecodeException
 
@@ -9,9 +10,46 @@ class TestClass(object):
     def test_encrypt_decrypt(self):
         d = PkDecryption()
         e = PkEncryption.from_key(d.public_key)
-
-        decoded = d.decrypt(e.encrypt(CLEARTEXT))
+        enc = e.encrypt(CLEARTEXT)
+        mac = enc.mac
+        decoded = d.decrypt(enc)
         assert decoded == CLEARTEXT
+
+    def test_encrypt_message_attr(self):
+        d = PkDecryption()
+        e = PkEncryption.from_key(d.public_key)
+        pub_key = d.public_key
+        encrypts = PkEncryption.from_key(pub_key)
+        enc_message = encrypts.encrypt(CLEARTEXT)
+        
+        mac = enc_message.mac
+        ciphertext = enc_message.ciphertext
+        ephemeral_key = enc_message.ephemeral_key
+
+        assert mac is not None
+        assert ciphertext is not None
+        assert ephemeral_key is not None
+
+
+    def test_olm_api_compatibility(self):
+        
+        # [PSEUDO CODE]
+
+        pub_key = "abcdefghijklmnopqrstuvwxyz"
+
+        # Old olm implementation
+        encrypts = olm.pk.PkEncryption(pub_key)
+        olm_message = encrypts.encrypt(CLEARTEXT)
+
+        # New vodozemac implementation (PUB KEY is not SAME here)
+        d = PkDecryption.from_key(pub_key)
+        pub_key = d.public_key
+        encrypts = PkEncryption.from_key(pub_key)
+        vodozemac_message = encrypts.encrypt(CLEARTEXT)
+
+        assert olm_message.ciphertext == vodozemac_message.ciphertext
+        assert olm_message.mac == vodozemac_message.mac
+        assert olm_message.ephemeral_key == vodozemac_message.ephemeral_key
 
     def test_encrypt_decrypt_with_wrong_key(self):
         wrong_e = PkEncryption.from_key(PkDecryption().public_key)
